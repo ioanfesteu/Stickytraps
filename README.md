@@ -1,0 +1,2 @@
+# Stickytraps
+Greenhouse whiteflies monitor

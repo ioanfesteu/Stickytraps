@@ -104,7 +104,7 @@ def fetch_files(patches):
 
                 ## Generate list of confidences.
                 confidences = [box['confidence'] for box in output_dict['predictions']]
-                # classes = [box['class'] for box in output_dict['predictions']]
+                classes = [box['class'] for box in output_dict['predictions']]
 
                 ######### DRAW BOXES AROUND DETECTED OBJECTS ##############
                 preds = r.json()

@@ -45,12 +45,14 @@ def get_geotagging(exif):
 # cut original image to smaller patches to be sent for inference
 def patch_image(image):
     img = np.array(image) 
+    # st.write(img.shape)
     patches = patchify(img, (432, 432, 3), step=432)
     #st.write("Patches: {}".format(patches.shape))
     return patches
 
 # reconstruct the original image from individual patches
 def unpatch_image(patches):
+    # image_shape = (5184,3456,3)
     image_shape = (3456,5184,3)
     reconstructed_image = unpatchify(patches, image_shape)
     return reconstructed_image
@@ -63,7 +65,8 @@ def fetch_files(patches):
     start = time.time()
     objects_no = 0
     confidences_all = []
-    progress_bar = [*range(0,96,3)] # prepare the progress bar range. Must match the number of patches!!!
+    results = []
+    progress_bar = [*range(0,96,1)] # prepare the progress bar range. Must match the number of patches!!!
     percent_complete = iter(progress_bar) # set up as iterator
     my_bar = st.progress(0)
     with st.spinner('Wait for inference'):
@@ -105,6 +108,8 @@ def fetch_files(patches):
                 ######### DRAW BOXES AROUND DETECTED OBJECTS ##############
                 preds = r.json()
                 detections = preds['predictions']
+                results.append(preds)
+                # classes = preds["predictions"][4]
                 objects_no += len(detections)
 
                 draw = ImageDraw.Draw(image)
@@ -139,13 +144,12 @@ def fetch_files(patches):
                 patches[i, j, 0, :, :, :] = img
                 confidences_all.append(confidences)
 
-                # percent = next(percent_complete)
-                # if percent > 100:
-                #     percent = 100
-                # else:
-                #     percent = 100
-                # my_bar.progress(percent)
-
+                percent = next(percent_complete)
+                if percent > 100:
+                    percent = 100
+                my_bar.progress(percent)
+    with st.expander("Raw inference results"):
+        st.write(results)
     end = time.time()
     st.success(f'Done in : {round(end-start)} seconds')
     return patches, objects_no, confidences_all
@@ -204,7 +208,8 @@ else:
     image = Image.open(uploaded_file)
 
 slot1 = st.empty()
-slot1.image(image, use_column_width=True)
+slot1.image(image)
+# slot1.image(image, use_column_width=True)
 
 exif = get_exif(image)
 geotags = get_geotagging(exif)
@@ -232,7 +237,8 @@ with open("./detected/detected.jpg", "rb") as file:
     )
 
 #st.write(f"Inference time: {round(end-start)} seconds")
-st.write(f"### Number of soybeans detected: {objects_no}")
+st.write(f"### Number of bugs detected: {objects_no}")
+# st.write(f"### Bugs types: {objects_no}")
 #unpatch_image(patches)
 
 ## Histogram in main app.
@@ -245,38 +251,43 @@ with st.expander("Histogram of Confidence Levels"):
 # # Display the image geaotagg in main app.
 lat = []
 lon = []
-for values in geotags["GPSLatitude"]:
-    lat.append(values)
-for values in geotags["GPSLongitude"]:
-    lon.append(values)
+# st.write(geotags)
+try:
+    for values in geotags["GPSLatitude"]:
+        lat.append(values)
+    for values in geotags["GPSLongitude"]:
+        lon.append(values)
 
-latitude = round(lat[0] + lat[1]/60.0 + lat[2]/3600.0, 6)
-longitude = round(lon[0] + lon[1]/60.0 + lon[2]/3600.0, 6)
+    latitude = round(lat[0] + lat[1]/60.0 + lat[2]/3600.0, 6)
+    longitude = round(lon[0] + lon[1]/60.0 + lon[2]/3600.0, 6)
 
 
-with st.expander("Geotagged image"):
-    # df = pd.DataFrame(
-    # np.random.randn(1000, 2) / [50, 50] + [37.76, -122.4],
-    # columns=['lat', 'lon'])
-    df = pd.DataFrame(
-            [[latitude, longitude]],
-            columns=['lat', 'lon'])
+    with st.expander("Geotagged image"):
+        # df = pd.DataFrame(
+        # np.random.randn(1000, 2) / [50, 50] + [37.76, -122.4],
+        # columns=['lat', 'lon'])
+        df = pd.DataFrame(
+                [[latitude, longitude]],
+                columns=['lat', 'lon'])
 
-    st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/light-v10',
-    initial_view_state=pdk.ViewState(
-        latitude=latitude,
-        longitude=longitude,
-        zoom=16,
-        pitch=0,
-        ),
-    layers=[
-    pdk.Layer(
-        'ScatterplotLayer',
-        data=df,
-        get_position='[lon, lat]',
-        get_color='[200, 30, 0, 160]',
-        get_radius=5,
-        ),
-    ],
-    ))
+        st.pydeck_chart(pdk.Deck(
+        map_style='mapbox://styles/mapbox/light-v10',
+        initial_view_state=pdk.ViewState(
+            latitude=latitude,
+            longitude=longitude,
+            zoom=16,
+            pitch=0,
+            ),
+        layers=[
+        pdk.Layer(
+            'ScatterplotLayer',
+            data=df,
+            get_position='[lon, lat]',
+            get_color='[200, 30, 0, 160]',
+            get_radius=5,
+            ),
+        ],
+        ))
+except:
+    with st.expander("Geotagged image"):
+        st.write("No GPS data available")

@@ -104,12 +104,12 @@ def fetch_files(patches):
 
                 ## Generate list of confidences.
                 confidences = [box['confidence'] for box in output_dict['predictions']]
+                # classes = [box['class'] for box in output_dict['predictions']]
 
                 ######### DRAW BOXES AROUND DETECTED OBJECTS ##############
                 preds = r.json()
                 detections = preds['predictions']
                 results.append(preds)
-                # classes = preds["predictions"][4]
                 objects_no += len(detections)
 
                 draw = ImageDraw.Draw(image)
@@ -148,8 +148,8 @@ def fetch_files(patches):
                 if percent > 100:
                     percent = 100
                 my_bar.progress(percent)
-    with st.expander("Raw inference results"):
-        st.write(results)
+    # with st.expander("Raw inference results"):
+    #     st.write(classes)
     end = time.time()
     st.success(f'Done in : {round(end-start)} seconds')
     return patches, objects_no, confidences_all

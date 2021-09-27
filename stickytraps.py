@@ -15,12 +15,45 @@ import matplotlib.pyplot as plt
 import time
 import pydeck as pdk
 import constants
+import pymongo
 
 # objects_no = 0
 # confidences_all = []
 
 API_KEY = constants.PUBLIC_API_KEY
 
+# Initialize connection.
+client = pymongo.MongoClient(**st.secrets["mongo"])
+
+def write_db(classes):
+    db = client.Whiteflies
+    db.farm1.insert_one(classes)
+
+#@st.cache(ttl=600)
+def read_db():
+    db = client.Whiteflies
+    items = db.farm1.find()
+    items = list(items)  # make hashable for st.cache
+    return items
+
+def sort_results(results):
+    classes = {"WF":"0", "MR":"0"}
+    wf_conf = []
+    mr_conf = []
+
+    for dicts in results:
+      for k, v in dicts.items():
+        if len(dicts[k]) !=0:
+          for item in v:
+            if item["class"] == "WF":
+              wf_conf.append(item["confidence"])
+            elif item["class"] == "MR":
+              mr_conf.append(item["confidence"])
+
+    classes["WF"] = len(wf_conf)
+    classes["MR"] = len(mr_conf)
+    return classes
+    
 def get_exif(image):
     #img = Image.open(image)
     # try:
@@ -149,12 +182,12 @@ def fetch_files(patches):
                     percent = 100
                 my_bar.progress(percent)
     # with st.expander("Raw inference results"):
-    #     st.write(classes)
+    #     st.write(results)
+    # with st.expander("Confidences"):
+    #     st.write(confidences_all)
     end = time.time()
     st.success(f'Done in : {round(end-start)} seconds')
-    return patches, objects_no, confidences_all
-
-
+    return patches, objects_no, confidences_all, results
 
 
 ####################### REMOVE THE HAMBURGER ####################
@@ -218,7 +251,7 @@ geotags = get_geotagging(exif)
 patches = patch_image(image)
 
 # Send the patches for inference
-patches, objects_no, confidences_all = fetch_files(patches)
+patches, objects_no, confidences_all, results = fetch_files(patches)
 
 # Reconstruct the image from marked patches
 reconstructed_image = unpatch_image(patches)
@@ -238,7 +271,6 @@ with open("./detected/detected.jpg", "rb") as file:
 
 #st.write(f"Inference time: {round(end-start)} seconds")
 st.write(f"### Number of bugs detected: {objects_no}")
-# st.write(f"### Bugs types: {objects_no}")
 #unpatch_image(patches)
 
 ## Histogram in main app.
@@ -248,9 +280,11 @@ with st.expander("Histogram of Confidence Levels"):
     ax.hist(flatten(confidences_all), bins=10, range=(0.0,1.0))
     st.pyplot(fig)
 
-# # Display the image geaotagg in main app.
+# # Display the image geotagg in main app.
 lat = []
 lon = []
+latitude = 0
+longitude = 0
 # st.write(geotags)
 try:
     for values in geotags["GPSLatitude"]:
@@ -291,3 +325,20 @@ try:
 except:
     with st.expander("Geotagged image"):
         st.write("No GPS data available")
+
+# Sort results then return the number of occurences by class
+classes = sort_results(results)
+classes["lat"] = latitude
+classes["lon"] = longitude
+# st.write(classes)
+
+# Write database
+write_db(classes)
+
+# Read database
+items = read_db()
+
+# Plot classes
+df = pd.DataFrame(items, columns=["WF","MR"])
+with st.expander("Plot results"):
+    st.area_chart(df)
